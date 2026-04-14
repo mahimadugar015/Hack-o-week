@@ -1,0 +1,136 @@
+import re
+import tkinter as tk
+from tkinter import scrolledtext
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+faq = {
+    "admission": "Admissions start in June. Apply online through the website.",
+    "fees": "Fee ranges from 50,000 to 1,00,000 per year depending on course.",
+    "hostel": "Hostel facilities are available for boys and girls.",
+    "contact": "Call us at 9876543210.",
+    "timings": "College timings are 9 AM to 5 PM.",
+    "library": "Library is open from 8 AM to 8 PM.",
+    "courses": "We offer B.Tech, MBA, BCA, MCA and more.",
+    "website": "Visit www.college.edu for more info.",
+    "documents": "Required documents: ID proof, marksheets, photos.",
+    "register": "You can register online through the admission portal."
+}
+
+phrase_map = {
+    "fee structure": "fees",
+    "how much fees": "fees",
+    "admission process": "admission",
+    "how to apply": "admission",
+    "hostel facility": "hostel",
+    "college timing": "timings",
+    "library time": "library",
+    "courses offered": "courses",
+    "required documents": "documents",
+    "how to register": "register"
+}
+
+intents = {
+    "admission": ["admission", "apply", "register"],
+    "fees": ["fees", "cost"],
+    "hostel": ["hostel"],
+    "contact": ["contact", "phone"],
+    "timings": ["timing", "time"],
+    "library": ["library"],
+    "courses": ["course"],
+    "website": ["website"],
+    "documents": ["document"],
+    "register": ["register"]
+}
+
+def preprocess(text):
+    text = text.lower()
+    text = re.sub(r'[^a-zA-Z\\s]', '', text)
+    return text
+
+def map_phrase(text):
+    for phrase in phrase_map:
+        if phrase in text:
+            return phrase_map[phrase]
+    return text
+
+def detect_intents(text):
+    detected = []
+    for intent, keywords in intents.items():
+        for word in keywords:
+            if word in text:
+                detected.append(intent)
+                break
+    return detected
+
+questions = list(faq.keys())
+answers = list(faq.values())
+
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(questions)
+
+def get_top3(query):
+    query_vec = vectorizer.transform([query])
+    similarity = cosine_similarity(query_vec, X)[0]
+    top_indices = similarity.argsort()[-3:][::-1]
+    return [answers[i] for i in top_indices]
+
+def get_response(user_input):
+    clean_input = preprocess(user_input)
+    mapped_input = map_phrase(clean_input)
+    detected = detect_intents(mapped_input)
+
+    if detected:
+        responses = []
+        for intent in detected:
+            responses.append(f"{intent.upper()}: {faq[intent]}")
+        return "\n".join(responses)
+    else:
+        results = get_top3(mapped_input)
+        return "\n".join(results)
+
+def send(event=None):
+    user_input = entry.get()
+    if user_input.strip() == "":
+        return
+
+    chat_window.config(state=tk.NORMAL)
+
+    chat_window.insert(tk.END, f"You: {user_input}\n", "user")
+    response = get_response(user_input)
+    chat_window.insert(tk.END, f"Bot: \n{response}\n\n", "bot")
+
+    chat_window.config(state=tk.DISABLED)
+    chat_window.yview(tk.END)
+    entry.delete(0, tk.END)
+
+root = tk.Tk()
+root.title("🎓 Institute Chatbot")
+root.geometry("520x620")
+root.configure(bg="#1e1e2f")
+
+title = tk.Label(root, text="Institute FAQ Chatbot", font=("Helvetica", 16, "bold"), bg="#1e1e2f", fg="#ffffff")
+title.pack(pady=10)
+
+chat_window = scrolledtext.ScrolledText(root, wrap=tk.WORD, font=("Arial", 11), bg="#2b2b3c", fg="#ffffff", relief=tk.FLAT)
+chat_window.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+chat_window.config(state=tk.DISABLED)
+
+chat_window.tag_config("user", foreground="#00ffcc")
+chat_window.tag_config("bot", foreground="#ffcc00")
+
+frame = tk.Frame(root, bg="#1e1e2f")
+frame.pack(pady=5)
+
+entry = tk.Entry(frame, font=("Arial", 12), width=30, bg="#3a3a4f", fg="white", insertbackground="white")
+entry.grid(row=0, column=0, padx=5)
+entry.bind("<Return>", send)
+
+send_button = tk.Button(frame, text="Send", font=("Arial", 11, "bold"), bg="#4CAF50", fg="white", padx=10, command=send)
+send_button.grid(row=0, column=1, padx=5)
+
+clear_button = tk.Button(frame, text="Clear", font=("Arial", 11), bg="#f44336", fg="white", padx=10,
+                         command=lambda: chat_window.config(state=tk.NORMAL) or chat_window.delete(1.0, tk.END) or chat_window.config(state=tk.DISABLED))
+clear_button.grid(row=0, column=2, padx=5)
+
+root.mainloop()
