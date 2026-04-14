@@ -1,0 +1,136 @@
+import tkinter as tk
+from tkinter import scrolledtext
+import re
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+faq = {
+    "fees": "Fee is around ₹50,000 per year.",
+    "admission": "Admissions start in June.",
+    "hostel": "Hostel facilities are available.",
+    "library": "Library is open from 9 AM to 6 PM.",
+    "courses": "We offer CSE, IT, ECE, Mechanical.",
+    "timings": "College timings: 9 AM to 4 PM.",
+    "contact": "Call 9876543210.",
+    "website": "Visit: www.college.edu",
+    "documents": "Submit marksheets, ID proof, photos.",
+    "register": "Register online via website.",
+    "placements": "Placement rate is around 85%.",
+    "scholarship": "Scholarships available based on merit.",
+    "canteen": "Canteen is available with hygienic food.",
+    "sports": "Sports facilities include cricket, football, gym.",
+    "transport": "College buses available across city.",
+    "faculty": "Experienced and qualified faculty.",
+    "labs": "Modern labs with updated equipment.",
+    "internship": "Internship support is provided.",
+    "events": "Annual fest and technical events conducted.",
+    "attendance": "Minimum 75% attendance required."
+}
+
+questions = [
+    "What is the fee structure?",
+    "How can I apply for admission?",
+    "Is hostel facility available?",
+    "What are the library timings?",
+    "Which courses are offered?",
+    "What are college timings?",
+    "How to contact the college?",
+    "What documents are required?",
+    "Is transport facility available?",
+    "Are placements good?",
+    "Is scholarship available?",
+    "What sports facilities are there?",
+    "Does college provide internships?",
+    "What are lab facilities like?",
+    "Tell me about faculty",
+    "Are there any events conducted?",
+    "What is attendance requirement?"
+]
+
+faq_keys = list(faq.keys())
+vectorizer = TfidfVectorizer()
+X = vectorizer.fit_transform(faq_keys)
+
+def preprocess(text):
+    return re.sub(r'[^a-zA-Z0-9\s]', '', text.lower())
+
+def get_response(user_input):
+    text = preprocess(user_input)
+
+    for key in faq:
+        if key in text:
+            return faq[key]
+
+    user_vec = vectorizer.transform([text])
+    similarity = cosine_similarity(user_vec, X)
+    top = similarity.argsort()[0][-3:][::-1]
+
+    valid_indices = [i for i in top if i < len(questions)]
+    return "You can ask:\n" + "\n".join([f"• {questions[i]}" for i in valid_indices])
+
+def send():
+    user = entry.get().strip()
+    if not user:
+        return
+
+    chat.insert(tk.END, f"\n You: {user}\n", "user")
+
+    response = get_response(user)
+    chat.insert(tk.END, f" Bot: {response}\n", "bot")
+
+    chat.yview(tk.END)  # auto scroll
+    entry.delete(0, tk.END)
+
+def show_suggestions(event):
+    text = entry.get().lower()
+    suggestion_box.delete(0, tk.END)
+
+    for q in questions:
+        if text in q.lower():
+            suggestion_box.insert(tk.END, q)
+
+def insert_suggestion(event):
+    selected = suggestion_box.get(tk.ACTIVE)
+    entry.delete(0, tk.END)
+    entry.insert(0, selected)
+
+root = tk.Tk()
+root.title("Smart College Chatbot ")
+root.geometry("700x700")
+root.configure(bg="#0f172a")
+
+header = tk.Label(root, text=" Smart College Assistant",
+                  bg="#1e293b", fg="white",
+                  font=("Segoe UI", 16, "bold"), pady=10)
+header.pack(fill=tk.X)
+
+chat = scrolledtext.ScrolledText(root, wrap=tk.WORD,
+                                 font=("Segoe UI", 11),
+                                 bg="#111827", fg="white")
+chat.pack(padx=10, pady=10, fill=tk.BOTH, expand=True)
+
+chat.tag_config("user", foreground="#38bdf8")
+chat.tag_config("bot", foreground="#22c55e")
+
+entry = tk.Entry(root, font=("Segoe UI", 13),
+                 bg="#1e293b", fg="white",
+                 insertbackground="white")
+entry.pack(padx=10, pady=5, fill=tk.X)
+entry.bind("<KeyRelease>", show_suggestions)
+
+entry.bind("<Return>", lambda event: send())
+
+suggestion_box = tk.Listbox(root, height=5,
+                           bg="#1e293b", fg="white",
+                           font=("Segoe UI", 10))
+suggestion_box.pack(padx=10, fill=tk.X)
+suggestion_box.bind("<<ListboxSelect>>", insert_suggestion)
+
+btn = tk.Button(root, text="Send",
+                command=send,
+                bg="#22c55e", fg="white",
+                font=("Segoe UI", 12, "bold"),
+                relief="flat", padx=10, pady=5)
+btn.pack(pady=10)
+
+root.mainloop()
